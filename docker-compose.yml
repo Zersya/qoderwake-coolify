@@ -1,0 +1,29 @@
+services:
+  qoderwake:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: qoderwake
+    restart: unless-stopped
+    ports:
+      - "${QODERWAKE_PORT:-19820}:19820"
+    environment:
+      # Set your Qoder Personal Access Token for headless authentication
+      # Generate one at: https://qoder.com (Account Settings → Personal Access Tokens)
+      - QODER_PERSONAL_ACCESS_TOKEN=${QODER_PERSONAL_ACCESS_TOKEN:-}
+      # Optional: Override host/port (defaults: 0.0.0.0 / 19820)
+      - QODERWAKE_HOST=${QODERWAKE_HOST:-0.0.0.0}
+      - QODERWAKE_PORT=19820
+    volumes:
+      # Persist QoderWake data (auth state, wakers, configs, projects)
+      - qoderwake_data:/home/qoderwake/.qoderwake
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:19820/"]
+      interval: 30s
+      timeout: 10s
+      start_period: 60s
+      retries: 3
+
+volumes:
+  qoderwake_data:
+    driver: local
