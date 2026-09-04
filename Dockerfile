@@ -36,10 +36,18 @@ ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 # Install fake systemctl shim (containers have no systemd, but QoderWake
 # calls systemctl to register a user service unit during daemon startup)
 COPY fake-systemctl.sh /usr/local/bin/systemctl
-RUN chmod +x /usr/local/bin/systemctl
 
 # Create a non-root user
 RUN useradd -m -s /bin/bash qoderwake
+
+# Install uv/uvx (Python package runner) for EverMeMOS MCP server
+# Copy from official astral-sh image, then symlink to /home/qoderwake/.local/bin/
+# which is the path the MCP config expects (visible in daemon PATH)
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /usr/local/bin/
+RUN mkdir -p /home/qoderwake/.local/bin \
+    && ln -sf /usr/local/bin/uv /home/qoderwake/.local/bin/uv \
+    && ln -sf /usr/local/bin/uvx /home/qoderwake/.local/bin/uvx \
+    && chown -R qoderwake:qoderwake /home/qoderwake/.local
 
 USER qoderwake
 WORKDIR /home/qoderwake
