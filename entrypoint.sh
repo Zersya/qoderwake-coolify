@@ -41,6 +41,31 @@ else
     echo "[INFO] You will need to authenticate via the Web UI after startup."
 fi
 
+# Write EverMeMOS credentials for the everos stdio MCP launcher.
+# stdio MCP children do not inherit container env vars and the Console UI
+# rejects connector env keys such as EVERMEMOS_API_KEY, so the launcher
+# (evermemos-launch.sh) reads these from a file instead. Refreshed on every
+# start, so rotating EVEROS_API_KEY in Coolify + redeploy is enough.
+if [ -n "${EVEROS_API_KEY:-}" ] || [ -n "${EVERMEMOS_API_KEY:-}" ]; then
+    echo "[INFO] Writing EverMeMOS credentials file for the everos MCP launcher..."
+    python3 - <<'PY'
+import os, shlex
+vals = {
+    "EVERMEMOS_API_KEY": os.environ.get("EVEROS_API_KEY") or os.environ.get("EVERMEMOS_API_KEY") or "",
+    "EVERMEMOS_USER_ID": os.environ.get("EVERMEMOS_USER_ID") or "omp-user",
+    "EVERMEMOS_BASE_URL": os.environ.get("EVERMEMOS_BASE_URL") or "https://api.evermind.ai",
+}
+path = os.path.expanduser("~/.qoderwake/.everos/credentials.env")
+os.makedirs(os.path.dirname(path), exist_ok=True)
+os.chmod(os.path.dirname(path), 0o700)
+with open(path, "w") as f:
+    f.write("".join(f"export {k}={shlex.quote(v)}\n" for k, v in vals.items() if v))
+os.chmod(path, 0o600)
+PY
+else
+    echo "[WARN] EVEROS_API_KEY not set - the everos MCP connector will not authenticate."
+fi
+
 # Determine host and port from environment or use defaults
 HOST="${QODERWAKE_HOST:-0.0.0.0}"
 PORT="${QODERWAKE_PORT:-19820}"

@@ -58,18 +58,17 @@ Click **Deploy** in Coolify. The build will:
 3. Authenticate using your PAT
 4. Start the QoderWake service on `0.0.0.0:19820`
 
-### Step 6: Configure connector environment variables
+### Step 6: Point the `everos` connector at the launcher
 
-Deploy-time env vars do not reach `stdio` MCP connectors. After the first deploy,
-open the Console and set the `everos` connector env to the **literal** values, or
-its calls fail with `401`:
+Deploy-time env vars do not reach `stdio` MCP connectors, and the Console rejects
+connector env keys that look sensitive (`EVERMEMOS_API_KEY` included). After the
+first deploy, open the Console and change the `everos` connector **Command** to
+`/home/qoderwake/.qoderwake/bin/evermemos-launch.sh` with **empty Arguments and
+empty Env** — the launcher injects the credentials written by `entrypoint.sh`
+from `EVEROS_API_KEY` at container start. Skip this and EverMeMOS calls fail
+with `401`.
 
-- `EVERMEMOS_API_KEY` → the literal `EVEROS_API_KEY` value
-- `EVERMEMOS_USER_ID` → `omp-user`
-- `EVERMEMOS_BASE_URL` → `https://api.evermind.ai`
-
-Full rationale and the CLI equivalent are in
-[MCP Connector Environment Variables](#mcp-connector-environment-variables).
+Full rationale is in [MCP Connector Environment Variables](#mcp-connector-environment-variables).
 
 ## Access the Web Console
 
@@ -109,37 +108,42 @@ Two QoderWake behaviours are responsible, and they bite at the same time:
    Container-level variables such as `EVERMEMOS_API_KEY` are therefore never seen
    by a `stdio` connector.
 
-**Consequence:** a `stdio` connector that authenticates with an API key needs the
-**literal key value in the connector's own `env` block**. Compose-level variables
-are necessary for the daemon and for `http`/`sse` connectors, but not sufficient
-for `stdio` ones.
+**Consequence:** you cannot hand a `stdio` connector its secret through the
+environment, and there is an extra UI constraint:
 
-The `everos` (EverMeMOS memory) connector is `stdio`, so its env block must be:
+3. **The Console refuses sensitive env keys.** Trying to add a connector env
+   variable whose name looks sensitive (`token`, `secret`, `password`, `auth`,
+   `credential`, …) is rejected with "MCP environment variables cannot include
+   sensitive … keys". `EVERMEMOS_API_KEY` is blocked on that rule.
+4. **The env name is not negotiable.** `evermemos-mcp` hardcodes
+   `os.getenv("EVERMEMOS_API_KEY")` (`config.py`), so renaming the variable to
+   dodge the UI rule would silently disable authentication.
 
-| Connector env key    | Value                                       |
-| -------------------- | ------------------------------------------- |
-| `EVERMEMOS_API_KEY`  | the literal key copied from `EVEROS_API_KEY` |
-| `EVERMEMOS_USER_ID`  | `omp-user`                                  |
-| `EVERMEMOS_BASE_URL` | `https://api.evermind.ai`                   |
+**Supported pattern — launcher script with a credentials file.** This repo ships
+`evermemos-launch.sh`: the connector's **Command** points at it (empty args,
+empty env), and it injects the credentials before exec'ing the real server.
+`entrypoint.sh` writes those credentials at container start from the Coolify
+env vars into `~/.qoderwake/.everos/credentials.env` (mode `0600`, inside the
+`qoderwake_data` volume), so:
 
-Set these in the Console under **Waker → Connectors → everos → Environment**, or
-with the CLI (`mcp update` raises a config proposal you must approve in Console):
+- no secret ever lives in the connector config / `.mcp.json` / Console;
+- key rotation = update `EVEROS_API_KEY` in Coolify + redeploy (the file is
+  rewritten on every start);
+- it survives QoderWake re-materialisation, because the connector config never
+  contains the key in the first place.
 
-```bash
-qoderwake mcp update \
-  --waker-id <wakerId> \
-  --mcp-id <everosMcpId> \
-  --env '{"EVERMEMOS_API_KEY":"<literal-key>","EVERMEMOS_USER_ID":"omp-user","EVERMEMOS_BASE_URL":"https://api.evermind.ai"}'
-```
+One-time per-waker Console change (no sensitive values involved): open the
+`everos` connector and replace its launch configuration with:
 
-Keep `EVEROS_API_KEY` in Coolify too: it is the single place you store the key,
-and the connector value should be copied from it.
+| Field     | Value                                                              |
+| --------- | ------------------------------------------------------------------ |
+| Command   | `/home/qoderwake/.qoderwake/bin/evermemos-launch.sh`               |
+| Arguments | *(empty)*                                                          |
+| Env       | *(empty)* — credentials are injected from the volume file          |
 
-> **Trade-off:** because the literal key lives in the connector config, it is
-> persisted inside the `qoderwake_data` volume (`.mcp.json` plus the daemon
-> connector store), not only in Coolify. Rotating the key means updating **both**.
-> Treat that volume as secret-bearing: restrict host access and avoid committing
-> or shipping backups of it.
+> **Fallback:** if you are not using this repo's image (so the launcher file is
+> missing), any equivalent wrapper script with the same behaviour works — the
+> point is that the secret travels via a file, never via the connector env.
 
 ## Architecture
 
@@ -223,17 +227,29 @@ qoderwake mcp get --waker-id <wakerId> --mcp-id <everosMcpId> \
   | python3 -c "import sys,json,re;print(json.loads(re.sub(r'^\[qoderwake\]\s*','',sys.stdin.read()))['env'])"
 ```
 
-**Fix:** put the literal key (plus `EVERMEMOS_USER_ID` and `EVERMEMOS_BASE_URL`) in
-the connector env as shown above.
+**Fix (permanent):**
 
-**Two gotchas after fixing:**
+1. Redeploy so `entrypoint.sh` writes `~/.qoderwake/.everos/credentials.env`
+   (mode `0600`) from the Coolify env vars.
+2. In the Console, change the `everos` connector **Command** to
+   `/home/qoderwake/.qoderwake/bin/evermemos-launch.sh` (empty Arguments and Env).
+3. Start a new session and call an `everos` tool again.
 
-- Editing `.mcp.json` by hand is only a stopgap. The connector store is the source
-  of truth and is re-materialised over that file, so the placeholder comes back on
-  the next sync. Always fix it with `qoderwake mcp update` / the Console.
-- A `stdio` connector process is not re-spawned inside a live session. Start a new
-  session (or restart the daemon) before re-testing, otherwise you still hit the old
-  process holding the old key.
+The UI rule against sensitive env keys means the old "literal key in the
+connector env" workaround cannot be entered from the Console at all — the
+launcher exists precisely to move the secret to a file.
+
+**Gotchas:**
+
+- Editing `.mcp.json` by hand is only a stopgap. The connector store is the
+  source of truth and is re-materialised over that file. A literal key there
+  also means the secret is persisted in the connector config, which the launcher
+  pattern avoids entirely.
+- A `stdio` connector process is not re-spawned inside a live session. Start a
+  new session (or restart the daemon) before re-testing, otherwise you still hit
+  the old process holding the old key.
+- If the connector still sends `${env:...}`, its env block was left in place —
+  clear it in the Console (empty env) so the launcher is the only source.
 
 ## Updating QoderWake
 

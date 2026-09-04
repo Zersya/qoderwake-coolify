@@ -56,6 +56,11 @@ WORKDIR /home/qoderwake
 COPY --chown=qoderwake:qoderwake download-binaries.sh /tmp/download-binaries.sh
 RUN chmod +x /tmp/download-binaries.sh && bash /tmp/download-binaries.sh && rm /tmp/download-binaries.sh
 
+# EverMeMOS stdio launcher: seeds fresh qoderwake_data volumes (which overlay
+# ~/.qoderwake). entrypoint.sh writes the credentials file this script reads.
+COPY --chown=qoderwake:qoderwake evermemos-launch.sh /home/qoderwake/.qoderwake/bin/evermemos-launch.sh
+RUN chmod +x /home/qoderwake/.qoderwake/bin/evermemos-launch.sh
+
 # Add to PATH
 ENV PATH="/home/qoderwake/.qoderwake/bin:/home/qoderwake/.qoderwake:${PATH}"
 
