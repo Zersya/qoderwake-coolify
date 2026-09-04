@@ -15,8 +15,12 @@ services:
       - QODER_PERSONAL_ACCESS_TOKEN=${QODER_PERSONAL_ACCESS_TOKEN:-}
       # Optional: Override host/port (defaults: 0.0.0.0 / 19820)
       - QODERWAKE_HOST=${QODERWAKE_HOST:-0.0.0.0}
-      # EverMeMOS memory MCP server config (API_KEY is set here because the
-      # QoderWake connector UI blocks env var names containing "KEY")
+      # EverMeMOS / EverOS. EVEROS_API_KEY is the value you actually set in Coolify.
+      # IMPORTANT: these reach the QoderWake *daemon* only. The `everos` connector is
+      # a stdio MCP server, and stdio servers inherit just HOME, LOGNAME, PATH, SHELL,
+      # TERM, USER here -- so the same three values must also be written into the
+      # connector's own env block (with the LITERAL key; ${env:VAR} is not expanded).
+      # See README -> "MCP Connector Environment Variables".
       - EVERMEMOS_API_KEY=${EVEROS_API_KEY:-}
       - EVERMEMOS_USER_ID=omp-user
       - EVERMEMOS_BASE_URL=https://api.evermind.ai
