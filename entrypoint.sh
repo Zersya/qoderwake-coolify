@@ -54,12 +54,18 @@ sleep 1
 # Start QoderWake — pass --yes flag AND pipe "yes" to stdin for the external
 # exposure confirmation prompt (v1.0.2 ignores --yes for the daemon prompt)
 yes | "$QODERWAKE_BIN" start --host "$HOST" --port "$PORT" --yes 2>&1 || {
-    echo "[WARN] First start attempt failed, retrying..."
+    echo "[WARN] First start attempt failed, checking if daemon is up..."
     sleep 3
-    yes | "$QODERWAKE_BIN" start --host "$HOST" --port "$PORT" --yes 2>&1 || {
-        echo "[FATAL] QoderWake failed to start."
-        exit 1
-    }
+    if curl -sf "http://127.0.0.1:${PORT}/" >/dev/null 2>&1; then
+        echo "[INFO] Daemon is responding despite start exit code — continuing."
+    else
+        echo "[WARN] Daemon not responding, retrying..."
+        sleep 3
+        yes | "$QODERWAKE_BIN" start --host "$HOST" --port "$PORT" --yes 2>&1 || {
+            echo "[FATAL] QoderWake failed to start."
+            exit 1
+        }
+    fi
 }
 
 echo "========================================"

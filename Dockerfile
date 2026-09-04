@@ -14,6 +14,11 @@ RUN apt-get update && apt-get install -y \
     python3 \
     && rm -rf /var/lib/apt/lists/*
 
+# Install fake systemctl shim (containers have no systemd, but QoderWake
+# calls systemctl to register a user service unit during daemon startup)
+COPY fake-systemctl.sh /usr/local/bin/systemctl
+RUN chmod +x /usr/local/bin/systemctl
+
 # Create a non-root user
 RUN useradd -m -s /bin/bash qoderwake
 
