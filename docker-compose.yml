@@ -15,7 +15,8 @@ services:
       - QODER_PERSONAL_ACCESS_TOKEN=${QODER_PERSONAL_ACCESS_TOKEN:-}
       # Optional: Override host/port (defaults: 0.0.0.0 / 19820)
       - QODERWAKE_HOST=${QODERWAKE_HOST:-0.0.0.0}
-      - QODERWAKE_PORT=19820
+      # EverMeMOS API key for memory MCP server
+      - EVERMEMOS_API_KEY=${EVEROS_API_KEY:-}
     volumes:
       # Persist QoderWake data (auth state, wakers, configs, projects)
       - qoderwake_data:/home/qoderwake/.qoderwake
