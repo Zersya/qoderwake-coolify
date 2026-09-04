@@ -39,7 +39,7 @@ EXPOSE 19820
 COPY --chown=qoderwake:qoderwake entrypoint.sh /home/qoderwake/entrypoint.sh
 RUN chmod +x /home/qoderwake/entrypoint.sh
 
-HEALTHCHECK --interval=30s --timeout=10s --start-period=90s --retries=3 \
-    CMD curl -f http://localhost:19820/ || exit 1
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+    CMD curl -s -o /dev/null -w "%{http_code}" http://localhost:19820/ | grep -qE '^[0-9]{3}$' || exit 1
 
 ENTRYPOINT ["/home/qoderwake/entrypoint.sh"]

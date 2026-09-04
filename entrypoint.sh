@@ -45,39 +45,18 @@ fi
 HOST="${QODERWAKE_HOST:-0.0.0.0}"
 PORT="${QODERWAKE_PORT:-19820}"
 
-echo "[INFO] Starting QoderWake on ${HOST}:${PORT}..."
+echo "[INFO] Starting QoderWake daemon on ${HOST}:${PORT}..."
 
 # Stop any existing instance first (ignore errors)
 "$QODERWAKE_BIN" stop --force 2>/dev/null || true
 sleep 1
-
-# Start QoderWake — pass --yes flag AND pipe "yes" to stdin for the external
-# exposure confirmation prompt (v1.0.2 ignores --yes for the daemon prompt)
-yes | "$QODERWAKE_BIN" start --host "$HOST" --port "$PORT" --yes 2>&1 || {
-    echo "[WARN] First start attempt failed, checking if daemon is up..."
-    sleep 3
-    if curl -sf "http://127.0.0.1:${PORT}/" >/dev/null 2>&1; then
-        echo "[INFO] Daemon is responding despite start exit code — continuing."
-    else
-        echo "[WARN] Daemon not responding, retrying..."
-        sleep 3
-        yes | "$QODERWAKE_BIN" start --host "$HOST" --port "$PORT" --yes 2>&1 || {
-            echo "[FATAL] QoderWake failed to start."
-            exit 1
-        }
-    fi
-}
 
 echo "========================================"
 echo "  QoderWake is running!"
 echo "  Web Console: http://<your-domain>:${PORT}/"
 echo "========================================"
 
-# Keep the container alive — QoderWake runs as a background service
-while true; do
-    if ! "$QODERWAKE_BIN" status 2>/dev/null | grep -qi "running"; then
-        echo "[WARN] QoderWake stopped unexpectedly. Restarting..."
-        yes | "$QODERWAKE_BIN" start --host "$HOST" --port "$PORT" --yes 2>&1 || true
-    fi
-    sleep 30
-done
+# Run the daemon directly as PID 1 — bypass the `start` command which
+# tries to manage the process via systemd (unavailable in containers).
+# `__daemon` is the actual HTTP server process that `start` spawns internally.
+exec "$QODERWAKE_BIN" __daemon --host "$HOST" --port "$PORT"
