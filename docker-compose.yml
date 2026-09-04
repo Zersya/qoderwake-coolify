@@ -15,8 +15,11 @@ services:
       - QODER_PERSONAL_ACCESS_TOKEN=${QODER_PERSONAL_ACCESS_TOKEN:-}
       # Optional: Override host/port (defaults: 0.0.0.0 / 19820)
       - QODERWAKE_HOST=${QODERWAKE_HOST:-0.0.0.0}
-      # EverMeMOS API key for memory MCP server
+      # EverMeMOS memory MCP server config (API_KEY is set here because the
+      # QoderWake connector UI blocks env var names containing "KEY")
       - EVERMEMOS_API_KEY=${EVEROS_API_KEY:-}
+      - EVERMEMOS_USER_ID=omp-user
+      - EVERMEMOS_BASE_URL=https://api.evermind.ai
     volumes:
       # Persist QoderWake data (auth state, wakers, configs, projects)
       - qoderwake_data:/home/qoderwake/.qoderwake
