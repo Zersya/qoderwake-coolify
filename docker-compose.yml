@@ -5,6 +5,8 @@ services:
       dockerfile: Dockerfile
     container_name: qoderwake
     restart: unless-stopped
+    # Chrome in Docker needs more shared memory than the default 64MB
+    shm_size: 2gb
     ports:
       - "${QODERWAKE_PORT:-19820}:19820"
     environment:

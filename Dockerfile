@@ -14,6 +14,25 @@ RUN apt-get update && apt-get install -y \
     python3 \
     && rm -rf /var/lib/apt/lists/*
 
+# Install Google Chrome Stable for Chrome DevTools MCP support
+# (direct .deb download — no apt repo management needed)
+RUN curl -fsSL -o /tmp/google-chrome.deb \
+        https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb \
+    && apt-get update \
+    && apt-get install -y /tmp/google-chrome.deb fonts-liberation fonts-dejavu-core \
+    && rm /tmp/google-chrome.deb \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install chrome-wrapper that injects container-safe flags (--no-sandbox etc.)
+COPY chrome-wrapper.sh /usr/local/bin/chrome-wrapper
+RUN chmod +x /usr/local/bin/chrome-wrapper
+
+# Tell MCP servers where to find Chrome and don't download a bundled one
+ENV CHROME_BIN=/usr/local/bin/chrome-wrapper
+ENV CHROME_PATH=/usr/local/bin/chrome-wrapper
+ENV PUPPETEER_EXECUTABLE_PATH=/usr/local/bin/chrome-wrapper
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
+
 # Install fake systemctl shim (containers have no systemd, but QoderWake
 # calls systemctl to register a user service unit during daemon startup)
 COPY fake-systemctl.sh /usr/local/bin/systemctl
