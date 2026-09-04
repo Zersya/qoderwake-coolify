@@ -51,11 +51,12 @@ echo "[INFO] Starting QoderWake on ${HOST}:${PORT}..."
 "$QODERWAKE_BIN" stop --force 2>/dev/null || true
 sleep 1
 
-# Start QoderWake — auto-confirm the 0.0.0.0 binding warning
-echo "yes" | "$QODERWAKE_BIN" start --host "$HOST" --port "$PORT" 2>&1 || {
+# Start QoderWake — pass --yes flag AND pipe "yes" to stdin for the external
+# exposure confirmation prompt (v1.0.2 ignores --yes for the daemon prompt)
+yes | "$QODERWAKE_BIN" start --host "$HOST" --port "$PORT" --yes 2>&1 || {
     echo "[WARN] First start attempt failed, retrying..."
     sleep 3
-    echo "yes" | "$QODERWAKE_BIN" start --host "$HOST" --port "$PORT" 2>&1 || {
+    yes | "$QODERWAKE_BIN" start --host "$HOST" --port "$PORT" --yes 2>&1 || {
         echo "[FATAL] QoderWake failed to start."
         exit 1
     }
@@ -70,7 +71,7 @@ echo "========================================"
 while true; do
     if ! "$QODERWAKE_BIN" status 2>/dev/null | grep -qi "running"; then
         echo "[WARN] QoderWake stopped unexpectedly. Restarting..."
-        echo "yes" | "$QODERWAKE_BIN" start --host "$HOST" --port "$PORT" 2>&1 || true
+        yes | "$QODERWAKE_BIN" start --host "$HOST" --port "$PORT" --yes 2>&1 || true
     fi
     sleep 30
 done
