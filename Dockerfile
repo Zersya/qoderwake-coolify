@@ -14,6 +14,7 @@ RUN apt-get update && apt-get install -y \
     python3 \
     unzip \
     zip \
+    xz-utils \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Google Chrome Stable for Chrome DevTools MCP support
@@ -24,6 +25,16 @@ RUN curl -fsSL -o /tmp/google-chrome.deb \
     && apt-get install -y /tmp/google-chrome.deb fonts-liberation fonts-dejavu-core \
     && rm /tmp/google-chrome.deb \
     && rm -rf /var/lib/apt/lists/*
+
+# Install Node.js 20 LTS (for npx-based MCP servers like chrome-devtools-mcp).
+# Uses official binary tarball — no third-party apt repos needed.
+ARG NODE_VERSION=20.18.3
+RUN ARCH="$(dpkg --print-architecture | sed 's/amd64/x64/;s/arm64/arm64/')" \
+    && curl -fsSL "https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-${ARCH}.tar.xz" \
+         -o /tmp/node.tar.xz \
+    && tar -xJf /tmp/node.tar.xz -C /usr/local --strip-components=1 \
+    && rm /tmp/node.tar.xz \
+    && node --version && npm --version && npx --version
 
 # Install chrome-wrapper that injects container-safe flags (--no-sandbox etc.)
 COPY chrome-wrapper.sh /usr/local/bin/chrome-wrapper
