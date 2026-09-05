@@ -70,6 +70,64 @@ with `401`.
 
 Full rationale is in [MCP Connector Environment Variables](#mcp-connector-environment-variables).
 
+### Step 7: Set up the Browser Connector (Chrome DevTools MCP)
+
+The browser connector lets QoderWake control your **local** Chrome browser via
+the Chrome DevTools Protocol (CDP). This is separate from the Chrome installed
+inside the container (which is for headless/Puppeteer-based MCP tools).
+
+The connector works through a **Chrome extension** that you install in your
+local browser. The extension connects to the QoderWake container via WebSocket
+on port `16789`.
+
+#### 7a. Enable the browser connector
+
+The `entrypoint.sh` script attempts to auto-enable the browser connector on
+startup. If it doesn't, enable it manually:
+
+1. Open the QoderWake Console
+2. Go to **Settings → Connectors**
+3. Find **"Connect to Browser"** and toggle it **ON**
+
+#### 7b. Install the Chrome extension
+
+The extension is bundled in the Docker image. Run the setup script to package
+it, then copy it to your local machine:
+
+```bash
+# Run the setup script inside the container
+docker exec qoderwake bash /home/qoderwake/.qoderwake/bin/setup-browser-extension.sh
+
+# Copy the extension to your local machine
+docker cp qoderwake:/home/qoderwake/.qoderwake/browser-extension-download/chrome-extension ./chrome-extension
+```
+
+Then load it in Chrome:
+
+1. Open `chrome://extensions/` in your Chrome browser
+2. Enable **Developer mode** (toggle in the top-right corner)
+3. Click **"Load unpacked"**
+4. Select the `chrome-extension` directory you copied
+
+#### 7c. Connect the extension to QoderWake
+
+Open the extension popup (click the extension icon in Chrome) and configure
+the WebSocket URL:
+
+```
+ws://<your-server-ip-or-domain>:16789/extension/v2
+```
+
+- If you have a domain: `ws://your-domain.com:16789/extension/v2`
+- Without a domain: `ws://<server-ip>:16789/extension/v2`
+
+> **Note:** if you're using HTTPS for the Console, the extension may need a
+> `wss://` URL. Ensure your reverse proxy forwards WebSocket connections on
+> port 16789 as well.
+
+Once connected, the browser connector status in the Console should show
+**"Connected"** and QoderWake will be able to control your browser.
+
 ## Access the Web Console
 
 After deployment, access QoderWake at:
@@ -148,25 +206,37 @@ One-time per-waker Console change (no sensitive values involved): open the
 ## Architecture
 
 ```
-┌──────────────────────────────────────────┐
-│              Coolify Server              │
-│                                          │
-│  ┌────────────────────────────────────┐  │
-│  │        Docker Container            │  │
-│  │                                    │  │
-│  │   Ubuntu 22.04                     │  │
-│  │   └── QoderWake Service            │  │
-│  │       ├── Web Console (:19820)     │  │
-│  │       ├── Waker Management         │  │
-│  │       └── Task Execution           │  │
-│  │                                    │  │
-│  │   Volume: qoderwake_data           │  │
-│  │   └── ~/.qoderwake (persisted)     │  │
-│  └────────────────────────────────────┘  │
-│                                          │
-│  Coolify Reverse Proxy (Traefik/Caddy)   │
-│  └── your-domain.com → :19820           │
-└──────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────┐
+│                     Coolify Server                      │
+│                                                         │
+│  ┌──────────────────────────────────────────────────┐   │
+│  │              Docker Container                    │   │
+│  │                                                  │   │
+│  │   Ubuntu 22.04                                   │   │
+│  │   └── QoderWake Service                          │   │
+│  │       ├── Web Console (:19820)                   │   │
+│  │       ├── Browser Relay (:16789) ◄── WebSocket   │   │
+│  │       ├── Waker Management                       │   │
+│  │       └── Task Execution                         │   │
+│  │                                                  │   │
+│  │   Volume: qoderwake_data                         │   │
+│  │   └── ~/.qoderwake (persisted)                   │   │
+│  └──────────────────────────────────────────────────┘   │
+│                                                         │
+│  Coolify Reverse Proxy (Traefik/Caddy)                  │
+│  └── your-domain.com → :19820 / :16789                 │
+└─────────────────────────────────────────────────────────┘
+         ▲
+         │ WebSocket (ws://...:16789/extension/v2)
+         │
+┌────────┴──────────────────────────────┐
+│         Your Local Machine            │
+│  ┌─────────────────────────────────┐  │
+│  │  Chrome Browser                 │  │
+│  │  └── QoderWake Extension        │  │
+│  │      (loaded as unpacked ext)   │  │
+│  └─────────────────────────────────┘  │
+└───────────────────────────────────────┘
 ```
 
 ## Data Persistence
@@ -191,6 +261,7 @@ Your data survives container restarts and redeployments.
 | Service keeps restarting         | Check container logs for specific errors; ensure 4GB+ RAM available        |
 | "qoderwake not found"            | The install script may have failed — check build logs                      |
 | EverMeMOS MCP returns **401**    | Connector `env` holds `${env:EVEROS_API_KEY}` instead of the literal key — see below |
+| Browser connector not detecting browser | Enable connector in Console, install Chrome extension, verify port 16789 is reachable — see below |
 
 ### Viewing Logs
 
@@ -250,6 +321,57 @@ launcher exists precisely to move the secret to a file.
   the old process holding the old key.
 - If the connector still sends `${env:...}`, its env block was left in place —
   clear it in the Console (empty env) so the launcher is the only source.
+
+### Browser connector not detecting browser
+
+**Symptom:** the "Connect to Browser" connector shows `not_connected` and
+`v2ExtensionConnected: false`, even though the container is healthy.
+
+**Root cause:** the browser connector does not use the Chrome installed inside
+the Docker container. It works through a Chrome extension running in your
+**local** browser that connects to the container via WebSocket on port 16789.
+If the extension is not installed or cannot reach the relay, no browser is
+detected.
+
+**Diagnose:**
+
+```bash
+# 1. Is the browser relay running inside the container?
+docker exec qoderwake curl -s http://127.0.0.1:16789/extension/status
+# Expected: {"connected":false,"enabled":true,"version":"v2"}
+# If "enabled":false → the connector is not enabled
+
+# 2. Is port 16789 reachable from your local machine?
+curl -s http://<your-server-ip>:16789/extension/status
+# If connection refused → port is not exposed or firewall is blocking it
+
+# 3. Is the Chrome extension installed and configured?
+# Open chrome://extensions/ and check if the QoderWake extension is loaded.
+```
+
+**Fix:**
+
+1. Ensure port `16789` is exposed in `docker-compose.yml` (this repo already
+   includes it).
+2. Enable the browser connector in the Console (Settings → Connectors →
+   "Connect to Browser" → toggle ON). The `entrypoint.sh` also tries to
+   auto-enable it on startup.
+3. Install the Chrome extension in your local browser (see
+   [Step 7](#step-7-set-up-the-browser-connector-chrome-devtools-mcp)).
+4. Configure the extension with the WebSocket URL:
+   `ws://<your-server-ip-or-domain>:16789/extension/v2`
+
+**Gotchas:**
+
+- The Chrome installed in the Docker container (`google-chrome-stable`) is for
+  headless/Puppeteer-based MCP tools (e.g., `@anthropic/chrome-devtools-mcp`).
+  It is **not** what the browser connector uses.
+- If you use HTTPS for the Console, the extension may need a `wss://` URL.
+  Configure your reverse proxy (Traefik/Caddy) to forward WebSocket
+  connections on port 16789 with TLS termination.
+- The browser extension connects from your **local machine**, not from inside
+  the container. Make sure your firewall allows inbound connections on port
+  16789.
 
 ## Updating QoderWake
 
