@@ -12,6 +12,8 @@ RUN apt-get update && apt-get install -y \
     git \
     procps \
     python3 \
+    unzip \
+    zip \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Google Chrome Stable for Chrome DevTools MCP support
@@ -61,11 +63,28 @@ RUN chmod +x /tmp/download-binaries.sh && bash /tmp/download-binaries.sh && rm /
 COPY --chown=qoderwake:qoderwake evermemos-launch.sh /home/qoderwake/.qoderwake/bin/evermemos-launch.sh
 RUN chmod +x /home/qoderwake/.qoderwake/bin/evermemos-launch.sh
 
+# Download the Chrome browser extension for the "Connect to Browser" feature.
+# The extension lets QoderWake control the user's local Chrome via CDP.
+# It is bundled in the image so setup-browser-extension.sh can prepare a
+# downloadable zip without needing internet at runtime.
+RUN EXTENSION_DIR="/home/qoderwake/.qoderwake/data/browser-connector/chrome-extension" \
+    && mkdir -p "$EXTENSION_DIR" \
+    && curl -fsSL -o /tmp/chrome-extension.zip \
+         "https://download.qoder.com/qoder-work/bin/browser-connector/chrome-extension/1.5.0/qoderwork-chrome-extension-v1.5.0.zip" \
+    && unzip -o /tmp/chrome-extension.zip -d "$EXTENSION_DIR" \
+    && rm /tmp/chrome-extension.zip
+
+# Browser extension setup helper — copies the extension to a downloadable
+# location and prints instructions for loading it in the user's local Chrome.
+COPY --chown=qoderwake:qoderwake setup-browser-extension.sh /home/qoderwake/.qoderwake/bin/setup-browser-extension.sh
+RUN chmod +x /home/qoderwake/.qoderwake/bin/setup-browser-extension.sh
+
 # Add to PATH
 ENV PATH="/home/qoderwake/.qoderwake/bin:/home/qoderwake/.qoderwake:${PATH}"
 
-# Expose the default web console port
+# Expose the default web console port and browser connector relay port
 EXPOSE 19820
+EXPOSE 16789
 
 # Copy entrypoint script
 COPY --chown=qoderwake:qoderwake entrypoint.sh /home/qoderwake/entrypoint.sh

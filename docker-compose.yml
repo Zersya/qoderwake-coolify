@@ -9,6 +9,9 @@ services:
     shm_size: 2gb
     ports:
       - "${QODERWAKE_PORT:-19820}:19820"
+      # Browser connector relay — the Chrome extension in your local browser
+      # connects to this WebSocket to let QoderWake control the browser.
+      - "16789:16789"
     environment:
       # Set your Qoder Personal Access Token for headless authentication
       # Generate one at: https://qoder.com (Account Settings → Personal Access Tokens)

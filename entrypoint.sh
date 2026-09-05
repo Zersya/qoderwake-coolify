@@ -66,6 +66,20 @@ else
     echo "[WARN] EVEROS_API_KEY not set - the everos MCP connector will not authenticate."
 fi
 
+# Enable the browser connector and prepare the Chrome extension for download.
+# The browser connector relay (port 16789) lets QoderWake control the user's
+# local Chrome via a browser extension. We enable it here so it's ready when
+# the daemon starts, and run the extension setup script so the files are
+# packaged and waiting for `docker cp`.
+echo "[INFO] Enabling browser connector..."
+"$QODERWAKE_BIN" connector enable browser 2>/dev/null \
+    || echo "[WARN] Could not auto-enable browser connector — enable it manually in the Console."
+
+if [ -f "$HOME/.qoderwake/bin/setup-browser-extension.sh" ]; then
+    echo "[INFO] Preparing browser extension for download..."
+    bash "$HOME/.qoderwake/bin/setup-browser-extension.sh" 2>&1 || echo "[WARN] Extension setup failed — run setup-browser-extension.sh manually."
+fi
+
 # Determine host and port from environment or use defaults
 HOST="${QODERWAKE_HOST:-0.0.0.0}"
 PORT="${QODERWAKE_PORT:-19820}"
