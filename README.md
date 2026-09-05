@@ -262,6 +262,7 @@ Your data survives container restarts and redeployments.
 | "qoderwake not found"            | The install script may have failed — check build logs                      |
 | EverMeMOS MCP returns **401**    | Connector `env` holds `${env:EVEROS_API_KEY}` instead of the literal key — see below |
 | Browser connector not detecting browser | Enable connector in Console, install Chrome extension, verify port 16789 is reachable — see below |
+| chrome-devtools-mcp fails to start | Node.js/npx not found — ensure you're using the latest image with Node.js 20 LTS bundled |
 
 ### Viewing Logs
 
