@@ -28,7 +28,7 @@ RUN curl -fsSL -o /tmp/google-chrome.deb \
 
 # Install Node.js 20 LTS (for npx-based MCP servers like chrome-devtools-mcp).
 # Uses official binary tarball — no third-party apt repos needed.
-ARG NODE_VERSION=20.18.3
+ARG NODE_VERSION=20.19.0
 RUN ARCH="$(dpkg --print-architecture | sed 's/amd64/x64/;s/arm64/arm64/')" \
     && curl -fsSL "https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-${ARCH}.tar.xz" \
          -o /tmp/node.tar.xz \
